@@ -7,9 +7,7 @@ import com.cartagenacorp.lm_integration.util.JwtContextHolder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +17,8 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @Service
@@ -29,6 +29,9 @@ public class ProjectImportService {
 
     @Value("${issue.service.url}")
     private String issueServiceUrl;
+
+    @Value("${auth.service.url}")
+    private String authServiceUrl;
 
     private static final int MAX_DESCRIPTION_LENGTH = 1500;
 
@@ -81,6 +84,8 @@ public class ProjectImportService {
     }
 
     private List<IssueDTO> extractIssuesFromExcel(MultipartFile file, UUID projectId) throws Exception {
+        String token = JwtContextHolder.getToken();
+
         InputStream inputStream = file.getInputStream();
         Workbook workbook = new XSSFWorkbook(inputStream);
         Sheet sheet = workbook.getSheetAt(0);
@@ -109,7 +114,20 @@ public class ProjectImportService {
                 }
             }
 
-            issuesToSend.add(new IssueDTO(title, descriptions, 0, projectId, null, null, null, null));
+            Cell assignedCell = row.getCell(5);
+            UUID assignedId = null;
+
+            if (assignedCell != null && assignedCell.getCellType() != CellType.BLANK) {
+                String assignedRaw = assignedCell.getStringCellValue().trim();
+                if (!assignedRaw.isEmpty()) {
+                    assignedId = resolveUserIdByIdentifier(assignedRaw, token);
+                    if (assignedId == null) {
+                        throw new IllegalArgumentException("No user found for the identifier '" + assignedRaw + "' in line " + (row.getRowNum() + 1));
+                    }
+                }
+            }
+
+            issuesToSend.add(new IssueDTO(title, descriptions, 0, projectId, null, null, null, assignedId));
         }
         return issuesToSend;
     }
@@ -119,6 +137,25 @@ public class ProjectImportService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(token);
         return new HttpEntity<>(body, headers);
+    }
+
+    private UUID resolveUserIdByIdentifier(String identifier, String token) {
+        try {
+            String url = authServiceUrl +"/users/resolve?identifier=" + URLEncoder.encode(identifier, StandardCharsets.UTF_8);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(token);
+
+            ResponseEntity<UUID> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    UUID.class
+            );
+
+            return response.getStatusCode().is2xxSuccessful() ? response.getBody() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 }
 
