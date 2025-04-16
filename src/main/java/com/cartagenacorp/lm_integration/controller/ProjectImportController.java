@@ -9,7 +9,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/import")
-@CrossOrigin("*")
 public class ProjectImportController {
 
     private final ProjectImportService projectImportService;
