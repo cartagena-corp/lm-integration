@@ -127,7 +127,7 @@ public class ProjectImportService {
                 }
             }
 
-            issuesToSend.add(new IssueDTO(title, descriptions, 0, projectId, null, null, null, assignedId));
+            issuesToSend.add(new IssueDTO(title, descriptions, 0, projectId, null, null, null, null, assignedId));
         }
         return issuesToSend;
     }

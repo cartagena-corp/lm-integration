@@ -22,10 +22,6 @@ public class ProjectImportController {
     @RequiresPermission({"IMPORT_PROJECT"})
     public ResponseEntity<?> importProjectWithIssues(@RequestPart("project") String projectJson,
                                                      @RequestPart("file") MultipartFile file) {
-        try {
-            return projectImportService.importProjectWithIssues(projectJson, file);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Unexpected error: " + e.getMessage());
-        }
+        return projectImportService.importProjectWithIssues(projectJson, file);
     }
 }

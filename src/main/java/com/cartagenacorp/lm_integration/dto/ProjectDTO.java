@@ -16,6 +16,6 @@ public class ProjectDTO {
     private String description;
     private LocalDate startDate;
     private LocalDate endDate;
-    private String status;
+    private Long status;
     private UUID createdBy;
 }
