@@ -103,14 +103,13 @@ public class ProjectImportService {
                 if (row.getCell(i) != null && headerRow.getCell(i) != null) {
                     String columnTitle = headerRow.getCell(i).getStringCellValue();
                     String content = row.getCell(i).getStringCellValue();
-                    String fullDescription = "**" + columnTitle + "**\n" + content;
 
-                    if (fullDescription.length() > MAX_DESCRIPTION_LENGTH) {
+                    if (content.length() > MAX_DESCRIPTION_LENGTH) {
                         throw new IllegalArgumentException("The description in the row " + (row.getRowNum() + 1) +
                                 " and column '" + columnTitle + "' exceeds the maximum of " + MAX_DESCRIPTION_LENGTH + " characters");
                     }
 
-                    descriptions.add(new DescriptionDTO(fullDescription));
+                    descriptions.add(new DescriptionDTO(columnTitle, content));
                 }
             }
 
