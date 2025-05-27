@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: lm-integration
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+server:
+  port: '8087'
+app:
+  cors:
+    allowed-origins: https://cartagenacorporation.com
+  jwt:
+    secret: ${JWT_SECRET}
+project:
+  service:
+    url: https://lm-projects.cartagenacorporation.com/api/projects
+issue:
+  service:
+    url: https://lm-issues.cartagenacorporation.com/api/issues
+auth:
+  service:
+    url: https://lm-oauth.cartagenacorporation.com/api/oauth
