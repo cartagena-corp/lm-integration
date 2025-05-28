@@ -7,15 +7,15 @@ server:
   port: '8087'
 app:
   cors:
-    allowed-origins: https://cartagenacorporation.com
+    allowed-origins: https://cartagenacorporation.com,https://www.cartagenacorporation.com
   jwt:
     secret: ${JWT_SECRET}
 project:
   service:
-    url: https://lm-projects.cartagenacorporation.com/api/projects
+    url: http://localhost:8082/api/projects
 issue:
   service:
-    url: https://lm-issues.cartagenacorporation.com/api/issues
+    url: http://localhost:8090/api/issues
 auth:
   service:
-    url: https://lm-oauth.cartagenacorporation.com/api/oauth
+    url: http://localhost:8081/api/oauth
