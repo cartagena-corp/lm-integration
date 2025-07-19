@@ -34,11 +34,8 @@ public class GeminiService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    private final IssueExternalService issueExternalService;
-
-    public GeminiService(GeminiProperties properties, IssueExternalService issueExternalService) {
+    public GeminiService(GeminiProperties properties) {
         this.properties = properties;
-        this.issueExternalService = issueExternalService;
     }
 
 
