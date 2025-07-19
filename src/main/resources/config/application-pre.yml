@@ -3,6 +3,9 @@ spring:
     name: lm-integration
   autoconfigure:
     exclude: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+  configuration:
+    processor:
+      enabled: true
 server:
   port: '8087'
 app:
@@ -19,3 +22,7 @@ issue:
 auth:
   service:
     url: http://localhost:8081/api/oauth
+gemini:
+  api:
+    key: ${GEMINI_KEY}
+    url: ${GEMINI_URL}
