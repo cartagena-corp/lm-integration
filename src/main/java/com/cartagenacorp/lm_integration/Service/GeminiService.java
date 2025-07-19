@@ -4,6 +4,8 @@ import com.cartagenacorp.lm_integration.dto.IssueDTOGemini;
 import com.cartagenacorp.lm_integration.util.GeminiProperties;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -12,8 +14,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class GeminiService {
@@ -93,6 +98,18 @@ public class GeminiService {
 
         } catch (Exception e) {
             throw new RuntimeException("Error procesando la respuesta de Gemini", e);
+        }
+    }
+
+    public List<IssueDTOGemini> detectIssuesFromDocx(String projectId, InputStream docxInputStream) {
+        try (XWPFDocument document = new XWPFDocument(docxInputStream)) {
+            String texto = document.getParagraphs().stream()
+                    .map(XWPFParagraph::getText)
+                    .collect(Collectors.joining("\n"));
+
+            return detectIssues(projectId, texto);
+        } catch (IOException e) {
+            throw new RuntimeException("Error leyendo el archivo DOCX", e);
         }
     }
 }
