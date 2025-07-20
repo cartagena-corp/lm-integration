@@ -1,12 +1,11 @@
 package com.cartagenacorp.lm_integration.Service;
 
 import com.cartagenacorp.lm_integration.dto.IssueDTOGemini;
-import com.cartagenacorp.lm_integration.util.GeminiProperties;
+import com.cartagenacorp.lm_integration.entity.GeminiConfig;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -22,27 +21,20 @@ import java.util.stream.Collectors;
 
 @Service
 public class GeminiService {
-    @Value("${gemini.api.key}")
-    private String apiKey;
 
-    @Value("${gemini.api.url}")
-    private String apiUrl;
-
-    private final GeminiProperties properties;
-
-    private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=";
-
+    private final GeminiConfigService geminiConfigService;
     private final RestTemplate restTemplate = new RestTemplate();
 
-    public GeminiService(GeminiProperties properties) {
-        this.properties = properties;
+    public GeminiService(GeminiConfigService geminiConfigService) {
+        this.geminiConfigService = geminiConfigService;
     }
 
-
     public List<IssueDTOGemini> detectIssues(String projectId, String texto) {
+        GeminiConfig geminiConfig = geminiConfigService.getGeminiConfigForInternalUse();
+
         String prompt = String.format("""
         Analiza el siguiente texto y devuelve una lista de tareas en formato JSON como este:
-        Me devuelvas ninguna otra respuesta aparte del ```json y el ``` para encerrar el array de issues
+        No me devuelvas ninguna otra respuesta aparte del ```json y el ``` para encerrar el array de issues
         [
             {
                 "title": "CREAR CRUD DE USUARIOS",
@@ -69,8 +61,7 @@ public class GeminiService {
         );
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
-        //String url = GEMINI_API_URL + apiKey;
-        String url = properties.getUrl() + "?key=" + properties.getKey();
+        String url = geminiConfig.getUrl() + "?key=" + geminiConfig.getKey();
 
         ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
 
@@ -89,8 +80,6 @@ public class GeminiService {
                     .trim();
 
             List<IssueDTOGemini> issues = mapper.readValue(respuestaJson, new TypeReference<List<IssueDTOGemini>>() {});
-
-
             return issues;
 
         } catch (Exception e) {

@@ -23,7 +23,7 @@ public class GeminiController {
     }
 
     @PostMapping(value = "/detectIssuesFromText/{projectId}") // ya esta
-    @RequiresPermission({"IMPORT_PROJECT"})
+    @RequiresPermission({"GEMINI_ACTIVE"})
     public ResponseEntity<List<IssueDTOGemini>> detectIssuesWithGeminiText(
             @PathVariable("projectId") String projectId,
             @RequestBody String texto
@@ -33,7 +33,7 @@ public class GeminiController {
     }
 
     @PostMapping(value = "/detectIssuesFromDocx", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @RequiresPermission({"IMPORT_PROJECT"})
+    @RequiresPermission({"GEMINI_ACTIVE"})
     public ResponseEntity<?> detectIssuesWithGeminiFromDocx(
             @RequestPart("projectId") String projectId,
             @RequestPart("file") MultipartFile file
