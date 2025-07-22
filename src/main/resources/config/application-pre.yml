@@ -8,7 +8,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    open-in-view: 'false'
+    open-in-view: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
 server:
   port: '8087'
 app:
