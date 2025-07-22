@@ -2,7 +2,7 @@ spring:
   application:
     name: lm-integration
   datasource:
-    url: jdbc:postgresql://localhost:5432/lamuralla
+    url: jdbc:postgresql://localhost:5433/lamuralla
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   jpa:
