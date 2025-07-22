@@ -22,7 +22,7 @@ public class GeminiController {
         this.geminiService = geminiService;
     }
 
-    @PostMapping(value = "/detectIssuesFromText/{projectId}") // ya esta
+    @PostMapping(value = "/detectIssuesFromText/{projectId}")
     @RequiresPermission({"GEMINI_ACTIVE"})
     public ResponseEntity<List<IssueDTOGemini>> detectIssuesWithGeminiText(
             @PathVariable("projectId") String projectId,
@@ -44,5 +44,12 @@ public class GeminiController {
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
+    }
+
+    @PostMapping(value = "/chat")
+    @RequiresPermission({"GEMINI_ACTIVE"})
+    public ResponseEntity<String> chat(@RequestBody String texto) {
+        String response = geminiService.chat(texto);
+        return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 }
