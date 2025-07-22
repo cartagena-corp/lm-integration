@@ -98,4 +98,38 @@ public class GeminiService {
             throw new RuntimeException("Error leyendo el archivo DOCX", e);
         }
     }
+
+    public String chat(String prompt) {
+        GeminiConfig geminiConfig = geminiConfigService.getGeminiConfigForInternalUse();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, Object> body = Map.of(
+                "contents", List.of(
+                        Map.of("parts", List.of(Map.of("text", prompt)))
+                )
+        );
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+        String url = geminiConfig.getUrl() + "?key=" + geminiConfig.getKey();
+
+        ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+
+            String rawText = mapper.readTree(response.getBody())
+                    .path("candidates").get(0)
+                    .path("content")
+                    .path("parts").get(0)
+                    .path("text").asText();
+
+            return rawText;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Error procesando la respuesta de Gemini: " + e.getMessage(), e);
+        }
+    }
 }
