@@ -20,8 +20,17 @@ public class ProjectImportController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RequiresPermission({"IMPORT_PROJECT"})
-    public ResponseEntity<?> importProjectWithIssues(@RequestPart("project") String projectJson,
-                                                     @RequestPart("file") MultipartFile file) {
-        return projectImportService.importProjectWithIssues(projectJson, file);
+    public ResponseEntity<?> importProjectWithIssues(
+            @RequestPart("projectId") String projectId,
+            @RequestPart("file") MultipartFile file,
+            @RequestPart("mapping") String mappingJson
+    ) {
+        return projectImportService.importProjectWithIssues(projectId, file, mappingJson);
+    }
+
+    @PostMapping("/columns")
+    @RequiresPermission({"IMPORT_PROJECT"})
+    public ResponseEntity<?> getExcelColumns(@RequestParam("file") MultipartFile file) {
+        return projectImportService.extractExcelColumns(file);
     }
 }

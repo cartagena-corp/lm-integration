@@ -33,102 +33,94 @@ public class ProjectImportService {
     @Value("${auth.service.url}")
     private String authServiceUrl;
 
-    private static final int MAX_DESCRIPTION_LENGTH = 1500;
+    private static final int MAX_DESCRIPTION_LENGTH = 5000;
 
     private final RestTemplate restTemplate;
-    private final ObjectMapper objectMapper;
 
     @Autowired
-    public ProjectImportService(RestTemplate restTemplate, ObjectMapper objectMapper) {
+    public ProjectImportService(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
-        this.objectMapper = objectMapper;
     }
 
-    public ResponseEntity<?> importProjectWithIssues(String projectJson, MultipartFile file) {
-        UUID projectId = null;
+    public ResponseEntity<?> importProjectWithIssues(String projectId, MultipartFile file, String mappingJson) {
         try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            Map<String, String> mapping = objectMapper.readValue(mappingJson, Map.class);
+
             String token = JwtContextHolder.getToken();
 
-            objectMapper.registerModule(new JavaTimeModule());
-            objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-            ProjectDTO projectDTO = objectMapper.readValue(projectJson, ProjectDTO.class);
+            List<IssueDTO> issuesToSend = extractIssuesFromExcel(file, UUID.fromString(projectId), mapping, token);
 
-            ResponseEntity<ProjectDTO> projectResponse = restTemplate.exchange(
-                    projectServiceUrl,
+            restTemplate.exchange(
+                    issueServiceUrl + "/batch",
                     HttpMethod.POST,
-                    buildHttpEntity(projectDTO, token),
-                    ProjectDTO.class);
-
-            if (!projectResponse.getStatusCode().is2xxSuccessful() || projectResponse.getBody() == null) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Error creating project");
-            }
-
-            projectId = projectResponse.getBody().getId();
-
-            List<IssueDTO> issuesToSend = extractIssuesFromExcel(file, projectId);
-
-            restTemplate.exchange(issueServiceUrl + "/batch", HttpMethod.POST,
-                    buildHttpEntity(issuesToSend, token), Void.class);
+                    buildHttpEntity(issuesToSend, token),
+                    Void.class
+            );
 
             return ResponseEntity.ok("Successful import");
+
         } catch (Exception e) {
-            if (projectId != null) {
-                Map<String, Object> errorBody = new HashMap<>();
-                errorBody.put("error", "ISSUE_CREATION_FAILED");
-                errorBody.put("message", "An error occurred while adding issues to the project. Please delete the project and try again");
-                errorBody.put("details", List.of(e.getMessage()));
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorBody);
-            }
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error: " + e.getMessage());
+            Map<String, Object> errorBody = new HashMap<>();
+            errorBody.put("error", "ISSUE_CREATION_FAILED");
+            errorBody.put("message", "An error occurred while adding issues to the project.");
+            errorBody.put("details", List.of(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorBody);
         }
     }
 
-    private List<IssueDTO> extractIssuesFromExcel(MultipartFile file, UUID projectId) throws Exception {
-        String token = JwtContextHolder.getToken();
-
+    private List<IssueDTO> extractIssuesFromExcel(MultipartFile file, UUID projectId, Map<String, String> mapping, String token) throws Exception {
         InputStream inputStream = file.getInputStream();
         Workbook workbook = new XSSFWorkbook(inputStream);
         Sheet sheet = workbook.getSheetAt(0);
+        Row headerRow = sheet.getRow(0);
 
         List<IssueDTO> issuesToSend = new ArrayList<>();
-        Row headerRow = sheet.getRow(0);
 
         for (Row row : sheet) {
             if (row.getRowNum() == 0) continue;
 
-            String title = row.getCell(0).getStringCellValue();
+            String title = getCellValueByMapping(row, headerRow, mapping.get("title"));
+
             List<DescriptionDTO> descriptions = new ArrayList<>();
-
-            for (int i = 1; i <= 3; i++) {
-                if (row.getCell(i) != null && headerRow.getCell(i) != null) {
-                    String columnTitle = headerRow.getCell(i).getStringCellValue();
-                    String content = row.getCell(i).getStringCellValue();
-
-                    if (content.length() > MAX_DESCRIPTION_LENGTH) {
+            if (mapping.containsKey("descriptions")) {
+                String[] descColumns = mapping.get("descriptions").split(",");
+                for (String descCol : descColumns) {
+                    String content = getCellValueByMapping(row, headerRow, descCol.trim());
+                    if (content != null && content.length() > MAX_DESCRIPTION_LENGTH) {
                         throw new IllegalArgumentException("The description in the row " + (row.getRowNum() + 1) +
-                                " and column '" + columnTitle + "' exceeds the maximum of " + MAX_DESCRIPTION_LENGTH + " characters");
+                                " and column '" + descCol + "' exceeds the maximum of " + MAX_DESCRIPTION_LENGTH + " characters");
                     }
-
-                    descriptions.add(new DescriptionDTO(columnTitle, content));
+                    if (content != null && !content.isEmpty()) {
+                        descriptions.add(new DescriptionDTO(descCol, content));
+                    }
                 }
             }
 
-            Cell assignedCell = row.getCell(5);
             UUID assignedId = null;
 
-            if (assignedCell != null && assignedCell.getCellType() != CellType.BLANK) {
-                String assignedRaw = assignedCell.getStringCellValue().trim();
-                if (!assignedRaw.isEmpty()) {
+            if (mapping.containsKey("assignedId")) {
+                String assignedRaw = getCellValueByMapping(row, headerRow, mapping.get("assignedId"));
+                if (assignedRaw != null && !assignedRaw.isBlank()) {
                     assignedId = resolveUserIdByIdentifier(assignedRaw, token);
-                    if (assignedId == null) {
-                        throw new IllegalArgumentException("No user found for the identifier '" + assignedRaw + "' in line " + (row.getRowNum() + 1));
-                    }
                 }
             }
 
             issuesToSend.add(new IssueDTO(title, descriptions, 0, projectId, null, null, null, null, assignedId));
         }
         return issuesToSend;
+    }
+
+    private String getCellValueByMapping(Row row, Row headerRow, String columnName) {
+        if (columnName == null) return null;
+        for (int i = 0; i < headerRow.getLastCellNum(); i++) {
+            Cell headerCell = headerRow.getCell(i);
+            if (headerCell != null && columnName.equalsIgnoreCase(headerCell.getStringCellValue().trim())) {
+                Cell valueCell = row.getCell(i);
+                return (valueCell != null) ? valueCell.toString().trim() : null;
+            }
+        }
+        return null;
     }
 
     private <T> HttpEntity<T> buildHttpEntity(T body, String token) {
@@ -155,6 +147,51 @@ public class ProjectImportService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    public ResponseEntity<?> extractExcelColumns(MultipartFile file) {
+        try (InputStream inputStream = file.getInputStream();
+             Workbook workbook = new XSSFWorkbook(inputStream)) {
+
+            Sheet sheet = workbook.getSheetAt(0);
+            Row headerRow = sheet.getRow(0);
+
+            if (headerRow == null) {
+                return ResponseEntity.badRequest().body("El archivo no tiene encabezados en la primera fila.");
+            }
+
+            List<String> columns = new ArrayList<>();
+            for (Cell cell : headerRow) {
+                columns.add(cell.getStringCellValue().trim());
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("columns", columns);
+            response.put("sampleRow", getSampleRow(sheet));
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "READ_EXCEL_ERROR", "message", e.getMessage()));
+        }
+    }
+
+    private Map<String, Object> getSampleRow(Sheet sheet) {
+        Map<String, Object> sampleRow = new LinkedHashMap<>();
+        Row headerRow = sheet.getRow(0);
+        Row secondRow = sheet.getRow(1);
+
+        if (secondRow != null) {
+            for (int i = 0; i < headerRow.getLastCellNum(); i++) {
+                Cell headerCell = headerRow.getCell(i);
+                Cell valueCell = secondRow.getCell(i);
+                String header = headerCell != null ? headerCell.getStringCellValue() : "Column " + (i + 1);
+                String value = valueCell != null ? valueCell.toString() : "";
+                sampleRow.put(header, value);
+            }
+        }
+        return sampleRow;
     }
 }
 
