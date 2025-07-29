@@ -46,10 +46,13 @@ public class GeminiController {
         }
     }
 
-    @PostMapping(value = "/chat")
+    @PostMapping(value = "/chat", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RequiresPermission({"GEMINI_ACTIVE"})
-    public ResponseEntity<String> chat(@RequestBody String texto) {
-        String response = geminiService.chat(texto);
+    public ResponseEntity<String> chat(
+            @RequestPart("texto") String texto,
+            @RequestPart(value = "archivos", required = false) MultipartFile[] archivos
+    ) {
+        String response = geminiService.chat(texto, archivos);
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 }

@@ -4,6 +4,9 @@ import com.cartagenacorp.lm_integration.dto.IssueDTOGemini;
 import com.cartagenacorp.lm_integration.entity.GeminiConfig;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.springframework.http.HttpEntity;
@@ -12,9 +15,11 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -130,6 +135,109 @@ public class GeminiService {
 
         } catch (Exception e) {
             throw new RuntimeException("Error procesando la respuesta de Gemini: " + e.getMessage(), e);
+        }
+    }
+
+    public String chat(String prompt, MultipartFile[] archivos) {
+        StringBuilder contenidoArchivos = new StringBuilder();
+
+        if (archivos != null) {
+            for (MultipartFile archivo : archivos) {
+                String nombre = archivo.getOriginalFilename();
+                contenidoArchivos.append("\n\n--- Contenido de '").append(nombre).append("' ---\n");
+
+                try {
+                    contenidoArchivos.append(extractTextFromFile(archivo));
+                } catch (Exception e) {
+                    contenidoArchivos.append("[Error leyendo archivo ").append(nombre).append("]: ")
+                            .append(e.getMessage()).append("\n");
+                }
+            }
+        }
+
+        return chat(prompt + "\n\n" + contenidoArchivos.toString());
+    }
+
+    private String extractTextFromFile(MultipartFile file) {
+        String filename = file.getOriginalFilename();
+        if (filename == null) throw new IllegalArgumentException("Archivo sin nombre");
+
+        String ext = filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
+
+        return switch (ext) {
+            case "docx" -> extractTextFromDocx(file);
+            case "xlsx" -> extractTextFromExcel(file);
+            case "pdf" -> extractTextFromPdf(file);
+            default -> extractTextAsPlainText(file);
+        };
+    }
+
+    private String extractTextFromDocx(MultipartFile file) {
+        try (InputStream is = file.getInputStream();
+             XWPFDocument document = new XWPFDocument(is)) {
+
+            return document.getParagraphs().stream()
+                    .map(XWPFParagraph::getText)
+                    .collect(Collectors.joining("\n"));
+
+        } catch (IOException e) {
+            throw new RuntimeException("Error procesando archivo Word: " + e.getMessage(), e);
+        }
+    }
+
+    private String extractTextFromExcel(MultipartFile file) {
+        StringBuilder sb = new StringBuilder();
+
+        try (InputStream is = file.getInputStream();
+             Workbook workbook = WorkbookFactory.create(is)) {
+
+            for (Sheet sheet : workbook) {
+                sb.append("Hoja: ").append(sheet.getSheetName()).append("\n");
+
+                for (Row row : sheet) {
+                    for (Cell cell : row) {
+                        sb.append(getCellValueAsString(cell)).append(" | ");
+                    }
+                    sb.append("\n");
+                }
+                sb.append("\n");
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException("Error procesando archivo Excel: " + e.getMessage(), e);
+        }
+
+        return sb.toString();
+    }
+
+    private String extractTextAsPlainText(MultipartFile file) {
+        try {
+            return new String(file.getBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new RuntimeException("Error leyendo archivo como texto plano", e);
+        }
+    }
+
+    private String getCellValueAsString(Cell cell) {
+        return switch (cell.getCellType()) {
+            case STRING -> cell.getStringCellValue();
+            case NUMERIC -> String.valueOf(cell.getNumericCellValue());
+            case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
+            case FORMULA -> cell.getCellFormula();
+            case BLANK -> "";
+            default -> "[UNKNOWN]";
+        };
+    }
+
+    private String extractTextFromPdf(MultipartFile file) {
+        try (InputStream is = file.getInputStream()) {
+            PDDocument document = PDDocument.load(is);
+            PDFTextStripper stripper = new PDFTextStripper();
+            String text = stripper.getText(document);
+            document.close();
+            return text;
+        } catch (IOException e) {
+            throw new RuntimeException("Error procesando archivo PDF: " + e.getMessage(), e);
         }
     }
 }
