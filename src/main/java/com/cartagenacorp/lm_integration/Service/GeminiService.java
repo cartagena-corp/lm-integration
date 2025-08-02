@@ -1,8 +1,9 @@
 package com.cartagenacorp.lm_integration.Service;
 
-import com.cartagenacorp.lm_integration.dto.IssueDTOGemini;
+import com.cartagenacorp.lm_integration.dto.GeminiResponseDTO;
+import com.cartagenacorp.lm_integration.dto.IssueDescriptionsDto;
 import com.cartagenacorp.lm_integration.entity.GeminiConfig;
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.cartagenacorp.lm_integration.util.JwtContextHolder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -22,39 +23,91 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
 public class GeminiService {
 
     private final GeminiConfigService geminiConfigService;
+    private final ConfigExternalService configExternalService;
     private final RestTemplate restTemplate = new RestTemplate();
 
-    public GeminiService(GeminiConfigService geminiConfigService) {
+    public GeminiService(GeminiConfigService geminiConfigService,
+                         ConfigExternalService configExternalService) {
         this.geminiConfigService = geminiConfigService;
+        this.configExternalService = configExternalService;
     }
 
-    public List<IssueDTOGemini> detectIssues(String projectId, String texto) {
+    public GeminiResponseDTO detectIssuesFromTextAndOrDocx(String projectId, String promptTexto, MultipartFile file) {
+        StringBuilder contenidoArchivo = new StringBuilder();
+
+        if (file != null && !file.isEmpty()) {
+            try (XWPFDocument document = new XWPFDocument(file.getInputStream())) {
+                String textoDocx = document.getParagraphs().stream()
+                        .map(XWPFParagraph::getText)
+                        .collect(Collectors.joining("\n"));
+                contenidoArchivo.append(textoDocx);
+            } catch (IOException e) {
+                throw new RuntimeException("Error procesando archivo DOCX", e);
+            }
+        }
+
+        if (promptTexto == null || promptTexto.isBlank()) {
+            promptTexto = "Extrae tareas del siguiente contenido:";
+        }
+
+        if (contenidoArchivo.isEmpty()) {
+            throw new IllegalArgumentException("Debes enviar al menos un archivo para analizar.");
+        }
+
+        UUID projectIdUUID = UUID.fromString(projectId);
+        List<String> descriptionTitles = configExternalService.getIssueDescription(JwtContextHolder.getToken(), projectIdUUID)
+                .orElse(List.of())
+                .stream()
+                .map(IssueDescriptionsDto::getName)
+                .collect(Collectors.toList());
+
+        return detectIssues(projectId, promptTexto, contenidoArchivo.toString(), descriptionTitles);
+    }
+
+    public GeminiResponseDTO detectIssues(String projectId, String promptUsuario, String contenidoArchivo, List<String> descriptionTitles) {
         GeminiConfig geminiConfig = geminiConfigService.getGeminiConfigForInternalUse();
 
-        String prompt = String.format("""
-        Analiza el siguiente texto y devuelve una lista de tareas en formato JSON como este:
-        No me devuelvas ninguna otra respuesta aparte del ```json y el ``` para encerrar el array de issues
-        [
-            {
-                "title": "CREAR CRUD DE USUARIOS",
-                "descriptionsDTO": [
-                    { "title": "Requerimientos", "text": "El sistema debe permitir crear, leer, actualizar y eliminar usuarios" },
-                    { "title": "Validaciones", "text": "El correo debe ser único" }
-                ],
-                "projectId": Asegúrate de que cada objeto en la lista tenga en este campo "projectId" el valor "%s".,
-                "assignedId": equipo, persona mencionada, no se deja claro
+        String titlesText = "";
+        if (descriptionTitles != null && !descriptionTitles.isEmpty()) {
+            titlesText = "Usa exactamente estos títulos para las descripciones:\n";
+            for (String title : descriptionTitles) {
+                titlesText += "- " + title + "\n";
             }
-        ]
-        
+            titlesText += "Si no encuentras contenido para alguno, aún así inclúyelo con un campo 'text' vacío.\n";
+        }
 
-        Texto: %s
-        """, projectId, texto);
+        String prompt = String.format("""
+        Devuelve un JSON como el siguiente. No me devuelvas nada más que el JSON entre ```json y ```:
+        
+        {
+          "response": "Respuesta directa a la siguiente instrucción: '%s'",
+          "issues": [
+            {
+              "title": "CREAR CRUD DE USUARIOS",
+              "descriptionsDTO": [
+                { "title": "Requerimientos", "text": "El sistema debe permitir crear, leer, actualizar y eliminar usuarios" },
+                { "title": "Validaciones", "text": "El correo debe ser único" }
+              ],
+              "projectId": Asegúrate de que cada objeto en la lista tenga en este campo 'projectId' el valor "%s".,
+              "assignedId": equipo, persona mencionada, no se deja claro
+            }
+          ]
+        }
+        
+        %s
+        
+        Instrucción del usuario (para llenar el campo 'response'): %s
+        
+        --- CONTENIDO A ANALIZAR ---
+        %s
+        """, promptUsuario, projectId, titlesText, promptUsuario, contenidoArchivo);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -79,28 +132,15 @@ public class GeminiService {
                     .path("parts").get(0)
                     .path("text").asText();
 
-            String respuestaJson = rawText
+            String jsonClean = rawText
                     .replaceAll("(?s)```json\\s*", "")
                     .replaceAll("(?s)```\\s*", "")
                     .trim();
 
-            List<IssueDTOGemini> issues = mapper.readValue(respuestaJson, new TypeReference<List<IssueDTOGemini>>() {});
-            return issues;
+            return mapper.readValue(jsonClean, GeminiResponseDTO.class);
 
         } catch (Exception e) {
             throw new RuntimeException("Error procesando la respuesta de Gemini", e);
-        }
-    }
-
-    public List<IssueDTOGemini> detectIssuesFromDocx(String projectId, InputStream docxInputStream) {
-        try (XWPFDocument document = new XWPFDocument(docxInputStream)) {
-            String texto = document.getParagraphs().stream()
-                    .map(XWPFParagraph::getText)
-                    .collect(Collectors.joining("\n"));
-
-            return detectIssues(projectId, texto);
-        } catch (IOException e) {
-            throw new RuntimeException("Error leyendo el archivo DOCX", e);
         }
     }
 
