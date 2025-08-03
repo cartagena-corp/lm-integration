@@ -53,12 +53,12 @@ public class GeminiService {
             }
         }
 
-        if (promptTexto == null || promptTexto.isBlank()) {
-            promptTexto = "Extrae tareas del siguiente contenido:";
+        if ((promptTexto == null || promptTexto.isBlank()) && contenidoArchivo.isEmpty()) {
+            throw new IllegalArgumentException("Debes enviar al menos un prompt o un archivo para analizar.");
         }
 
-        if (contenidoArchivo.isEmpty()) {
-            throw new IllegalArgumentException("Debes enviar al menos un archivo para analizar.");
+        if (promptTexto == null || promptTexto.isBlank()) {
+            promptTexto = "Extrae tareas del siguiente contenido:";
         }
 
         UUID projectIdUUID = UUID.fromString(projectId);
@@ -85,6 +85,8 @@ public class GeminiService {
 
         String prompt = String.format("""
         Devuelve un JSON como el siguiente. No me devuelvas nada más que el JSON entre ```json y ```:
+        Si no hay contenido para analizar devuelve el array de issues vacio, a menos que la instruccion del usuario
+        te pida generar tareas o te pase algun texto de donde puedas detectar tareas.
         
         {
           "response": "Respuesta directa a la siguiente instrucción: '%s'",
