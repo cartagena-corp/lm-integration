@@ -80,7 +80,7 @@ public class GeminiService {
             for (String title : descriptionTitles) {
                 titlesText += "- " + title + "\n";
             }
-            titlesText += "Si no encuentras contenido para alguno, aún así inclúyelo con un campo 'text' vacío.\n";
+            titlesText += "y del contexto, identifica el contenido y relacionalo para cada una. Si no hay nada relacionado a esa descripción, inclúye el campo 'text' vacío.\n";
         }
 
         String prompt = String.format("""
