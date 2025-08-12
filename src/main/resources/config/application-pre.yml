@@ -2,13 +2,14 @@ spring:
   application:
     name: lm-integration
   datasource:
-    url: jdbc:postgresql://localhost:5432/lamuralla
+    url: jdbc:postgresql://localhost:5433/lamuralla
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: update
-    open-in-view: 'false'
+    open-in-view: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
 server:
   port: '8087'
 app:
@@ -25,3 +26,6 @@ issue:
 auth:
   service:
     url: http://localhost:8081/api/oauth
+config:
+  service:
+    url: http://localhost:8088/api/config
