@@ -163,7 +163,12 @@ public class ProjectImportService {
 
             List<String> columns = new ArrayList<>();
             for (Cell cell : headerRow) {
-                columns.add(cell.getStringCellValue().trim());
+                if (cell != null) {
+                    String value = cell.getStringCellValue().trim();
+                    if (!value.isEmpty()) {
+                        columns.add(value);
+                    }
+                }
             }
 
             Map<String, Object> response = new HashMap<>();
