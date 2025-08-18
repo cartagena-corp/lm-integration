@@ -1,12 +1,9 @@
 package com.cartagenacorp.lm_integration.Service;
 
 import com.cartagenacorp.lm_integration.dto.DescriptionDTO;
-import com.cartagenacorp.lm_integration.dto.IssueDTO;
-import com.cartagenacorp.lm_integration.dto.ProjectDTO;
+import com.cartagenacorp.lm_integration.dto.IssueDTO;git
 import com.cartagenacorp.lm_integration.util.JwtContextHolder;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -82,6 +79,10 @@ public class ProjectImportService {
 
             String title = getCellValueByMapping(row, headerRow, mapping.get("title"));
 
+            if (title == null || title.isBlank()) {
+                continue;
+            }
+
             List<DescriptionDTO> descriptions = new ArrayList<>();
             if (mapping.containsKey("descriptions")) {
                 String[] descColumns = mapping.get("descriptions").split(",");
@@ -106,7 +107,7 @@ public class ProjectImportService {
                 }
             }
 
-            issuesToSend.add(new IssueDTO(title, descriptions, 0, projectId, null, null, null, null, assignedId));
+            issuesToSend.add(new IssueDTO(title.trim(), descriptions, 0, projectId, null, null, null, null, assignedId));
         }
         return issuesToSend;
     }
