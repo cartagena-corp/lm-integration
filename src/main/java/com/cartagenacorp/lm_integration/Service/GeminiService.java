@@ -3,6 +3,7 @@ package com.cartagenacorp.lm_integration.Service;
 import com.cartagenacorp.lm_integration.dto.GeminiResponseDTO;
 import com.cartagenacorp.lm_integration.dto.IssueDescriptionsDto;
 import com.cartagenacorp.lm_integration.entity.GeminiConfig;
+import com.cartagenacorp.lm_integration.util.ApiUsageLogger;
 import com.cartagenacorp.lm_integration.util.JwtContextHolder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -31,44 +32,59 @@ public class GeminiService {
 
     private final GeminiConfigService geminiConfigService;
     private final ConfigExternalService configExternalService;
+    private final ApiUsageLogger apiUsageLogger;
+
     private final RestTemplate restTemplate = new RestTemplate();
 
     public GeminiService(GeminiConfigService geminiConfigService,
-                         ConfigExternalService configExternalService) {
+                         ConfigExternalService configExternalService,
+                         ApiUsageLogger apiUsageLogger) {
         this.geminiConfigService = geminiConfigService;
         this.configExternalService = configExternalService;
+        this.apiUsageLogger = apiUsageLogger;
     }
 
     public GeminiResponseDTO detectIssuesFromTextAndOrDocx(String projectId, String promptTexto, MultipartFile file) {
-        StringBuilder contenidoArchivo = new StringBuilder();
+        long startTime = System.currentTimeMillis();;
+        String status = "OK";
+        String feature = "detect-issues";
 
-        if (file != null && !file.isEmpty()) {
-            try (XWPFDocument document = new XWPFDocument(file.getInputStream())) {
-                String textoDocx = document.getParagraphs().stream()
-                        .map(XWPFParagraph::getText)
-                        .collect(Collectors.joining("\n"));
-                contenidoArchivo.append(textoDocx);
-            } catch (IOException e) {
-                throw new RuntimeException("Error procesando archivo DOCX", e);
+        try {
+            StringBuilder contenidoArchivo = new StringBuilder();
+
+            if (file != null && !file.isEmpty()) {
+                try (XWPFDocument document = new XWPFDocument(file.getInputStream())) {
+                    String textoDocx = document.getParagraphs().stream()
+                            .map(XWPFParagraph::getText)
+                            .collect(Collectors.joining("\n"));
+                    contenidoArchivo.append(textoDocx);
+                } catch (IOException e) {
+                    throw new RuntimeException("Error procesando archivo DOCX", e);
+                }
             }
+
+            if ((promptTexto == null || promptTexto.isBlank()) && contenidoArchivo.isEmpty()) {
+                throw new IllegalArgumentException("Debes enviar al menos un prompt o un archivo para analizar.");
+            }
+
+            if (promptTexto == null || promptTexto.isBlank()) {
+                promptTexto = "Extrae tareas del siguiente contenido:";
+            }
+
+            UUID projectIdUUID = UUID.fromString(projectId);
+            List<String> descriptionTitles = configExternalService.getIssueDescription(JwtContextHolder.getToken(), projectIdUUID)
+                    .orElse(List.of())
+                    .stream()
+                    .map(IssueDescriptionsDto::getName)
+                    .collect(Collectors.toList());
+
+            return detectIssues(projectId, promptTexto, contenidoArchivo.toString(), descriptionTitles);
+        } catch (Exception e) {
+            status = "ERROR";
+            throw e;
+        } finally {
+            apiUsageLogger.log(feature, projectId, startTime, status);
         }
-
-        if ((promptTexto == null || promptTexto.isBlank()) && contenidoArchivo.isEmpty()) {
-            throw new IllegalArgumentException("Debes enviar al menos un prompt o un archivo para analizar.");
-        }
-
-        if (promptTexto == null || promptTexto.isBlank()) {
-            promptTexto = "Extrae tareas del siguiente contenido:";
-        }
-
-        UUID projectIdUUID = UUID.fromString(projectId);
-        List<String> descriptionTitles = configExternalService.getIssueDescription(JwtContextHolder.getToken(), projectIdUUID)
-                .orElse(List.of())
-                .stream()
-                .map(IssueDescriptionsDto::getName)
-                .collect(Collectors.toList());
-
-        return detectIssues(projectId, promptTexto, contenidoArchivo.toString(), descriptionTitles);
     }
 
     public GeminiResponseDTO detectIssues(String projectId, String promptUsuario, String contenidoArchivo, List<String> descriptionTitles) {
@@ -181,23 +197,34 @@ public class GeminiService {
     }
 
     public String chat(String prompt, MultipartFile[] archivos) {
-        StringBuilder contenidoArchivos = new StringBuilder();
+        long startTime = System.currentTimeMillis();
+        String status = "OK";
+        String feature = "chat";
 
-        if (archivos != null) {
-            for (MultipartFile archivo : archivos) {
-                String nombre = archivo.getOriginalFilename();
-                contenidoArchivos.append("\n\n--- Contenido de '").append(nombre).append("' ---\n");
+        try {
+            StringBuilder contenidoArchivos = new StringBuilder();
 
-                try {
-                    contenidoArchivos.append(extractTextFromFile(archivo));
-                } catch (Exception e) {
-                    contenidoArchivos.append("[Error leyendo archivo ").append(nombre).append("]: ")
-                            .append(e.getMessage()).append("\n");
+            if (archivos != null) {
+                for (MultipartFile archivo : archivos) {
+                    String nombre = archivo.getOriginalFilename();
+                    contenidoArchivos.append("\n\n--- Contenido de '").append(nombre).append("' ---\n");
+
+                    try {
+                        contenidoArchivos.append(extractTextFromFile(archivo));
+                    } catch (Exception e) {
+                        contenidoArchivos.append("[Error leyendo archivo ").append(nombre).append("]: ")
+                                .append(e.getMessage()).append("\n");
+                    }
                 }
             }
-        }
 
-        return chat(prompt + "\n\n" + contenidoArchivos.toString());
+            return chat(prompt + "\n\n" + contenidoArchivos.toString());
+        } catch (Exception e) {
+            status = "ERROR";
+            throw e;
+        } finally {
+            apiUsageLogger.log(feature, null, startTime, status);
+        }
     }
 
     private String extractTextFromFile(MultipartFile file) {

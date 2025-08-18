@@ -46,4 +46,9 @@ public class JwtTokenUtil {
         String id = getAllClaimsFromToken(token).getSubject();
         return UUID.fromString(id);
     }
+
+    public String getUserEmail(String token) {
+        Claims claims = getAllClaimsFromToken(token);
+        return claims.get("email", String.class);
+    }
 }

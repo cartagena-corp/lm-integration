@@ -5,6 +5,7 @@ import java.util.UUID;
 public class JwtContextHolder {
     private static final ThreadLocal<UUID> currentUserId = new ThreadLocal<>();
     private static final ThreadLocal<String> currentToken = new ThreadLocal<>();
+    private static final ThreadLocal<String> currentUserEmail = new ThreadLocal<>();
 
     public static void setUserId(UUID userId) {
         currentUserId.set(userId);
@@ -22,9 +23,18 @@ public class JwtContextHolder {
         return currentToken.get();
     }
 
+    public static void setUserEmail(String email) {
+        currentUserEmail.set(email);
+    }
+
+    public static String getUserEmail() {
+        return currentUserEmail.get();
+    }
+
     public static void clear() {
         currentUserId.remove();
         currentToken.remove();
+        currentUserEmail.remove();
     }
 }
 
