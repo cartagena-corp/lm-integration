@@ -7,6 +7,7 @@ import com.cartagenacorp.lm_integration.dto.ProjectFilterDto;
 import com.cartagenacorp.lm_integration.entity.ApiUsageLog;
 import com.cartagenacorp.lm_integration.mapper.ApiUsageLogMapper;
 import com.cartagenacorp.lm_integration.repository.ApiUsageLogRepository;
+import com.cartagenacorp.lm_integration.util.JwtContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -28,17 +29,20 @@ public class ApiUsageService {
     }
 
     public ApiUsageFiltersDto getUniqueFilters() {
-        List<String> features = apiUsageLogRepository.findDistinctFeatures();
-        List<ProjectFilterDto> projects = apiUsageLogRepository.findProjectsUsedInApiLogs();
-        List<String> emails = apiUsageLogRepository.findDistinctUserEmails();
+        UUID organizationId = JwtContextHolder.getOrganizationId();
+        List<String> features = apiUsageLogRepository.findDistinctFeatures(organizationId);
+        List<ProjectFilterDto> projects = apiUsageLogRepository.findProjectsUsedInApiLogs(organizationId);
+        List<String> emails = apiUsageLogRepository.findDistinctUserEmails(organizationId);
 
         return new ApiUsageFiltersDto(features, projects, emails);
     }
 
     public PageResponseDTO<ApiUsageLogDto> getLogs(String feature, UUID projectId, String userEmail, int page, int size) {
+        UUID organizationId = JwtContextHolder.getOrganizationId();
+
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp"));
 
-        Page<ApiUsageLog> result = apiUsageLogRepository.findByFilters(feature, projectId, userEmail, pageable);
+        Page<ApiUsageLog> result = apiUsageLogRepository.findByFilters(organizationId, feature, projectId, userEmail, pageable);
 
         Page<ApiUsageLogDto> dtoPage = result.map(log -> apiUsageLogMapper.toDto(log));
 

@@ -4,6 +4,7 @@ import com.cartagenacorp.lm_integration.Service.ApiUsageService;
 import com.cartagenacorp.lm_integration.dto.ApiUsageFiltersDto;
 import com.cartagenacorp.lm_integration.dto.ApiUsageLogDto;
 import com.cartagenacorp.lm_integration.dto.PageResponseDTO;
+import com.cartagenacorp.lm_integration.util.RequiresPermission;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +25,7 @@ public class ApiUsageController {
     }
 
     @GetMapping("/filters")
+    @RequiresPermission({"GEMINI_CONFIG"})
     public ResponseEntity<ApiUsageFiltersDto> getFilters() {
         return ResponseEntity
                 .status(HttpStatus.OK)
@@ -31,6 +33,7 @@ public class ApiUsageController {
     }
 
     @GetMapping("/logs")
+    @RequiresPermission({"GEMINI_CONFIG"})
     public PageResponseDTO<ApiUsageLogDto> getLogs(
             @RequestParam(required = false) String feature,
             @RequestParam(required = false) UUID projectId,

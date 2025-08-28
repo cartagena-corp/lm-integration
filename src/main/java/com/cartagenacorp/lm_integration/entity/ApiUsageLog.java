@@ -42,4 +42,7 @@ public class ApiUsageLog {
 
     @Column(name = "status",length = 50, nullable = false)
     private String status;
+
+    @Column(name = "organization_id")
+    private UUID organizationId;
 }

@@ -21,4 +21,7 @@ public class GeminiConfig {
     private String key;
 
     private String url;
+
+    @Column(name = "organization_id")
+    private UUID organizationId;
 }

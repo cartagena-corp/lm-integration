@@ -15,8 +15,8 @@ import java.util.UUID;
 @Repository
 public interface ApiUsageLogRepository extends JpaRepository<ApiUsageLog, Long> {
 
-    @Query("SELECT DISTINCT a.feature FROM ApiUsageLog a")
-    List<String> findDistinctFeatures();
+    @Query("SELECT DISTINCT a.feature FROM ApiUsageLog a WHERE a.organizationId = :organizationId")
+    List<String> findDistinctFeatures(@Param("organizationId") UUID organizationId);
 
     @Query(value = """
         SELECT p.id AS id, p.name AS name
@@ -24,22 +24,25 @@ public interface ApiUsageLogRepository extends JpaRepository<ApiUsageLog, Long> 
         WHERE p.id IN (
             SELECT DISTINCT a.project_id
             FROM api_usage_log a
-            WHERE a.project_id IS NOT NULL
+            WHERE a.organization_id = :organizationId
+              AND a.project_id IS NOT NULL
         )
-        """, nativeQuery = true)
-    List<ProjectFilterDto> findProjectsUsedInApiLogs();
+    """, nativeQuery = true)
+    List<ProjectFilterDto> findProjectsUsedInApiLogs(@Param("organizationId") UUID organizationId);
 
-    @Query("SELECT DISTINCT a.userEmail FROM ApiUsageLog a")
-    List<String> findDistinctUserEmails();
+    @Query("SELECT DISTINCT a.userEmail FROM ApiUsageLog a WHERE a.organizationId = :organizationId")
+    List<String> findDistinctUserEmails(@Param("organizationId") UUID organizationId);
 
     @Query("""
         SELECT a
         FROM ApiUsageLog a
-        WHERE ((:feature IS NULL OR :feature = '') OR a.feature = :feature)
+        WHERE a.organizationId = :organizationId
+          AND ((:feature IS NULL OR :feature = '') OR a.feature = :feature)
           AND ((:projectId IS NULL) OR a.projectId = :projectId)
           AND ((:userEmail IS NULL OR :userEmail = '') OR a.userEmail = :userEmail)
-        """)
+    """)
     Page<ApiUsageLog> findByFilters(
+            @Param("organizationId") UUID organizationId,
             @Param("feature") String feature,
             @Param("projectId") UUID projectId,
             @Param("userEmail") String userEmail,
