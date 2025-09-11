@@ -30,6 +30,7 @@ public class ApiUsageLogger {
                 .timestamp(LocalDateTime.now())
                 .responseTimeMs(responseTimeMs)
                 .status(status)
+                .organizationId(JwtContextHolder.getOrganizationId())
                 .build();
 
         apiUsageLogRepository.save(log);
