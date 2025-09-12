@@ -37,7 +37,9 @@ public class GeminiConfigService {
         GeminiConfig configForFrontend = new GeminiConfig();
         configForFrontend.setId(config.getId());
         configForFrontend.setUrl(config.getUrl());
-        configForFrontend.setKey("************************");
+        String responseKey = obscureFirstHalf(config.getKey());
+        configForFrontend.setKey(responseKey);
+        configForFrontend.setOrganizationId(config.getOrganizationId());
 
         return configForFrontend;
     }
