@@ -61,9 +61,21 @@ public class GeminiConfigService {
         GeminiConfig responseConfig = new GeminiConfig();
         responseConfig.setId(saveGeminiConfig.getId());
         responseConfig.setUrl(saveGeminiConfig.getUrl());
-        responseConfig.setKey("************************");
+        String responseKey = obscureFirstHalf(saveGeminiConfig.getKey());
+        responseConfig.setKey(responseKey);
         responseConfig.setOrganizationId(saveGeminiConfig.getOrganizationId());
         return responseConfig;
+    }
+
+    private String obscureFirstHalf(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+        int length = value.length();
+        int hidden = length / 2;
+        String hiddenPart = "*".repeat(hidden);
+        String visiblePart = value.substring(hidden);
+        return hiddenPart + visiblePart;
     }
 
 }
