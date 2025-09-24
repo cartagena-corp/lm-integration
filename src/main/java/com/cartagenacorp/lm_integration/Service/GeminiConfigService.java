@@ -2,6 +2,7 @@ package com.cartagenacorp.lm_integration.Service;
 
 import com.cartagenacorp.lm_integration.dto.GeminiConfigDto;
 import com.cartagenacorp.lm_integration.entity.GeminiConfig;
+import com.cartagenacorp.lm_integration.mapper.GeminiConfigMapper;
 import com.cartagenacorp.lm_integration.repository.GeminiConfigRepository;
 import com.cartagenacorp.lm_integration.util.JwtContextHolder;
 import org.springframework.stereotype.Service;
@@ -13,9 +14,13 @@ import java.util.UUID;
 public class GeminiConfigService {
 
     private final GeminiConfigRepository geminiConfigRepository;
+    private final OrganizationExternalService organizationExternalService;
+    private final GeminiConfigMapper geminiConfigMapper;
 
-    public GeminiConfigService(GeminiConfigRepository geminiConfigRepository) {
+    public GeminiConfigService(GeminiConfigRepository geminiConfigRepository, OrganizationExternalService organizationExternalService, GeminiConfigMapper geminiConfigMapper) {
         this.geminiConfigRepository = geminiConfigRepository;
+        this.organizationExternalService = organizationExternalService;
+        this.geminiConfigMapper = geminiConfigMapper;
     }
 
     public GeminiConfig getGeminiConfigForInternalUse() {
@@ -25,27 +30,25 @@ public class GeminiConfigService {
         return config;
     }
 
-    public GeminiConfig getGeminiConfigForFrontend() {
+    public GeminiConfigDto getGeminiConfigForFrontend() {
         UUID organizationId = JwtContextHolder.getOrganizationId();
         GeminiConfig config = geminiConfigRepository.findByOrganizationId(organizationId)
                 .orElse(null);
 
         if (config == null) {
-            return new GeminiConfig();
+            return new GeminiConfigDto();
         }
 
-        GeminiConfig configForFrontend = new GeminiConfig();
-        configForFrontend.setId(config.getId());
-        configForFrontend.setUrl(config.getUrl());
-        String responseKey = obscureFirstHalf(config.getKey());
-        configForFrontend.setKey(responseKey);
-        configForFrontend.setOrganizationId(config.getOrganizationId());
+        GeminiConfigDto configForFrontend = geminiConfigMapper.toDto(config);
+        String organizationName = organizationExternalService.getOrganizationName(JwtContextHolder.getToken(), organizationId)
+                .orElse("Desconocida");
+        configForFrontend.setOrganizationName(organizationName);
 
         return configForFrontend;
     }
 
     @Transactional
-    public GeminiConfig updateOrCreateGeminiConfig(GeminiConfigDto geminiConfigDto) {
+    public GeminiConfigDto updateOrCreateGeminiConfig(GeminiConfigDto geminiConfigDto) {
         UUID organizationId = JwtContextHolder.getOrganizationId();
         GeminiConfig config = geminiConfigRepository.findByOrganizationId(organizationId)
                 .orElse(new GeminiConfig());
@@ -60,13 +63,12 @@ public class GeminiConfigService {
         }
         GeminiConfig saveGeminiConfig = geminiConfigRepository.save(config);
 
-        GeminiConfig responseConfig = new GeminiConfig();
-        responseConfig.setId(saveGeminiConfig.getId());
-        responseConfig.setUrl(saveGeminiConfig.getUrl());
-        String responseKey = obscureFirstHalf(saveGeminiConfig.getKey());
-        responseConfig.setKey(responseKey);
-        responseConfig.setOrganizationId(saveGeminiConfig.getOrganizationId());
-        return responseConfig;
+        GeminiConfigDto configForFrontend = geminiConfigMapper.toDto(saveGeminiConfig);
+        String organizationName = organizationExternalService.getOrganizationName(JwtContextHolder.getToken(), organizationId)
+                .orElse("Desconocida");
+        configForFrontend.setOrganizationName(organizationName);
+
+        return configForFrontend;
     }
 
     private String obscureFirstHalf(String value) {
