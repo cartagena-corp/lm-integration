@@ -29,7 +29,7 @@ public class ConfigExternalService {
 
     public Optional<List<IssueDescriptionsDto>> getIssueDescription(String token, UUID projectId) {
         try {
-            logger.info("[ConfigExternalService] Solicitando descripciones de issues del proyecto con ID={} al servicio lm-projects", projectId);
+            logger.info("[ConfigExternalService] Solicitando descripciones de issues del proyecto con ID={} al servicio lm-config", projectId);
 
             HttpHeaders headers = new HttpHeaders();
             headers.set("Authorization", "Bearer " + token);
