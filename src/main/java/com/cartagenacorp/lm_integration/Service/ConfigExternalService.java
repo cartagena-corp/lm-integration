@@ -29,7 +29,7 @@ public class ConfigExternalService {
 
     public Optional<List<IssueDescriptionsDto>> getIssueDescription(String token, UUID projectId) {
         try {
-            logger.debug("Solicitando descripciones de issues del proyecto: {}", projectId);
+            logger.info("[ConfigExternalService] Solicitando descripciones de issues del proyecto con ID={} al servicio lm-projects", projectId);
 
             HttpHeaders headers = new HttpHeaders();
             headers.set("Authorization", "Bearer " + token);
@@ -42,11 +42,11 @@ public class ConfigExternalService {
                     entity,
                     new ParameterizedTypeReference<>() {}
             );
-            logger.info("Datos de descripciones de issues obtenidos exitosamente. Cantidad: {}",
-                    response.getBody() != null ? response.getBody().size() : 0);
+
+            logger.info("[ConfigExternalService] Datos de descripciones de issues obtenidos exitosamente. Cantidad: {}", response.getBody() != null ? response.getBody().size() : 0);
             return Optional.ofNullable(response.getBody());
         } catch (Exception e) {
-            logger.error("Error al obtener datos de descripciones de las issues del proyecto: {}", e.getMessage(), e);
+            logger.error("[ConfigExternalService]  Error al obtener datos de descripciones de las issues del proyecto con ID={}", e.getMessage(), e);
             return Optional.empty();
         }
     }

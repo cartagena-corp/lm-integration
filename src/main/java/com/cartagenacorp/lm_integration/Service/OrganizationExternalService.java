@@ -13,6 +13,7 @@ import java.util.UUID;
 
 @Service
 public class OrganizationExternalService {
+
     private static final Logger logger = LoggerFactory.getLogger(OrganizationExternalService.class);
 
     @Value("${organization.service.url}")
@@ -26,7 +27,7 @@ public class OrganizationExternalService {
 
     public Optional<String> getOrganizationName(String token, UUID organizationId) {
         try {
-            logger.debug("Solicitando nombre de la organización con ID: {}", organizationId);
+            logger.info("[OrganizationExternalService] Solicitando nombre de la organización con ID={} al servicio lm-organizations", organizationId);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(token);
@@ -40,14 +41,15 @@ public class OrganizationExternalService {
             );
 
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                logger.info("Nombre de la organización obtenido exitosamente: {}", response.getBody().getOrganizationName());
-                return Optional.ofNullable(response.getBody().getOrganizationName());
+                String orgName = response.getBody().getOrganizationName();
+                logger.info("[OrganizationExternalService] Nombre de la organización obtenido: {}", orgName);
+                return Optional.ofNullable(orgName);
             }
 
-            logger.warn("No se encontró la organización con ID: {}", organizationId);
+            logger.warn("[OrganizationExternalService] No se encontró organización con ID={} (statusCode={})", organizationId, response.getStatusCode());
             return Optional.empty();
         } catch (Exception e) {
-            logger.error("Error al obtener el nombre de la organización con ID {}: {}", organizationId, e.getMessage(), e);
+            logger.error("[OrganizationExternalService] Error al obtener organización con ID={}: {}", organizationId, e.getMessage(), e);
             return Optional.empty();
         }
     }

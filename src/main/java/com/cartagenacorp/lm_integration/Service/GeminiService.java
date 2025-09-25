@@ -11,6 +11,8 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -29,6 +31,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class GeminiService {
+
+    private static final Logger logger = LoggerFactory.getLogger(GeminiService.class);
 
     private final GeminiConfigService geminiConfigService;
     private final ConfigExternalService configExternalService;
@@ -49,25 +53,31 @@ public class GeminiService {
         String status = "OK";
         String feature = "detect-issues";
 
+        logger.info("=== [GeminiService] Iniciando flujo de detección de Issues de texto/documento para projectId={} ===", projectId);
+
         try {
             StringBuilder contenidoArchivo = new StringBuilder();
 
             if (file != null && !file.isEmpty()) {
+                logger.info("[GeminiService] Procesando archivo DOCX: {}", file.getOriginalFilename());
                 try (XWPFDocument document = new XWPFDocument(file.getInputStream())) {
                     String textoDocx = document.getParagraphs().stream()
                             .map(XWPFParagraph::getText)
                             .collect(Collectors.joining("\n"));
                     contenidoArchivo.append(textoDocx);
                 } catch (IOException e) {
+                    logger.error("[GeminiService] Error procesando archivo DOCX", e);
                     throw new RuntimeException("Error procesando archivo DOCX", e);
                 }
             }
 
             if ((promptTexto == null || promptTexto.isBlank()) && contenidoArchivo.isEmpty()) {
+                logger.warn("[GeminiService] No se recibió ni prompt ni archivo para analizar");
                 throw new IllegalArgumentException("Debes enviar al menos un prompt o un archivo para analizar.");
             }
 
             if (promptTexto == null || promptTexto.isBlank()) {
+                logger.debug("[GeminiService] Prompt vacío, asignando prompt por defecto");
                 promptTexto = "Extrae tareas del siguiente contenido:";
             }
 
@@ -81,13 +91,17 @@ public class GeminiService {
             return detectIssues(projectId, promptTexto, contenidoArchivo.toString(), descriptionTitles);
         } catch (Exception e) {
             status = "ERROR";
+            logger.error("[GeminiService] Error en detectIssuesFromTextAndOrDocx para projectId={}", projectId, e);
             throw e;
         } finally {
             apiUsageLogger.log(feature, projectId, startTime, status);
+            logger.info("[GeminiService] Finalizando flujo de detección de Issues de texto/documento para projectId={} con status={}", projectId, status);
         }
     }
 
     public GeminiResponseDTO detectIssues(String projectId, String promptUsuario, String contenidoArchivo, List<String> descriptionTitles) {
+        logger.info("[GeminiService] Iniciando flujo de consulta a Gemini para projectId={}", projectId);
+
         GeminiConfig geminiConfig = geminiConfigService.getGeminiConfigForInternalUse();
 
         String titlesText = "";
@@ -138,8 +152,10 @@ public class GeminiService {
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
         String url = geminiConfig.getUrl() + "?key=" + geminiConfig.getKey();
+        logger.info("[GeminiService] Enviando request a Gemini API: {}", url);
 
         ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+        logger.debug("[GeminiService] Respuesta recibida: {}", response.getBody());
 
         try {
             ObjectMapper mapper = new ObjectMapper();
@@ -150,19 +166,24 @@ public class GeminiService {
                     .path("parts").get(0)
                     .path("text").asText();
 
+            logger.debug("[GeminiService] Texto extraído: {}", rawText);
+
             String jsonClean = rawText
                     .replaceAll("(?s)```json\\s*", "")
                     .replaceAll("(?s)```\\s*", "")
                     .trim();
 
-            return mapper.readValue(jsonClean, GeminiResponseDTO.class);
-
+            GeminiResponseDTO dto = mapper.readValue(jsonClean, GeminiResponseDTO.class);
+            logger.info("[GeminiService] Finalizando flujo de consulta a Gemini para projectId={}", projectId);
+            return dto;
         } catch (Exception e) {
+            logger.error("[GeminiService] Error procesando respuesta de Gemini para projectId={}", projectId, e);
             throw new RuntimeException("Error procesando la respuesta de Gemini", e);
         }
     }
 
     public String chat(String prompt) {
+        logger.info("[GeminiService] chat iniciado");
         GeminiConfig geminiConfig = geminiConfigService.getGeminiConfigForInternalUse();
 
         HttpHeaders headers = new HttpHeaders();
@@ -177,8 +198,10 @@ public class GeminiService {
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
         String url = geminiConfig.getUrl() + "?key=" + geminiConfig.getKey();
+        logger.info("[GeminiService] Enviando request a Gemini API: {}", url);
 
         ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+        logger.debug("[GeminiService] Respuesta recibida: {}", response.getBody());
 
         try {
             ObjectMapper mapper = new ObjectMapper();
@@ -189,9 +212,11 @@ public class GeminiService {
                     .path("parts").get(0)
                     .path("text").asText();
 
+            logger.info("[GeminiService] chat completado con éxito");
             return rawText;
 
         } catch (Exception e) {
+            logger.error("[GeminiService] Error procesando respuesta de Gemini en chat", e);
             throw new RuntimeException("Error procesando la respuesta de Gemini: " + e.getMessage(), e);
         }
     }
@@ -201,19 +226,22 @@ public class GeminiService {
         String status = "OK";
         String feature = "chat";
 
+        logger.info("[GeminiService] chat (con archivos) iniciado");
+
         try {
             StringBuilder contenidoArchivos = new StringBuilder();
 
             if (archivos != null) {
                 for (MultipartFile archivo : archivos) {
                     String nombre = archivo.getOriginalFilename();
+                    logger.info("[GeminiService] Procesando archivo: {}", nombre);
                     contenidoArchivos.append("\n\n--- Contenido de '").append(nombre).append("' ---\n");
 
                     try {
                         contenidoArchivos.append(extractTextFromFile(archivo));
                     } catch (Exception e) {
-                        contenidoArchivos.append("[Error leyendo archivo ").append(nombre).append("]: ")
-                                .append(e.getMessage()).append("\n");
+                        logger.error("[GeminiService] Error leyendo archivo {}", nombre, e);
+                        contenidoArchivos.append("[Error leyendo archivo ").append(nombre).append("]: ").append(e.getMessage()).append("\n");
                     }
                 }
             }
@@ -221,17 +249,23 @@ public class GeminiService {
             return chat(prompt + "\n\n" + contenidoArchivos.toString());
         } catch (Exception e) {
             status = "ERROR";
+            logger.error("[GeminiService] Error en chat con archivos", e);
             throw e;
         } finally {
             apiUsageLogger.log(feature, null, startTime, status);
+            logger.info("[GeminiService] chat (con archivos) finalizado con status={}", status);
         }
     }
 
     private String extractTextFromFile(MultipartFile file) {
         String filename = file.getOriginalFilename();
-        if (filename == null) throw new IllegalArgumentException("Archivo sin nombre");
+        if (filename == null) {
+            logger.warn("[GeminiService] Archivo sin nombre recibido");
+            throw new IllegalArgumentException("Archivo sin nombre");
+        }
 
         String ext = filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
+        logger.info("[GeminiService] Extrayendo texto de archivo {} con extensión {}", filename, ext);
 
         return switch (ext) {
             case "docx" -> extractTextFromDocx(file);
@@ -245,17 +279,20 @@ public class GeminiService {
         try (InputStream is = file.getInputStream();
              XWPFDocument document = new XWPFDocument(is)) {
 
+            logger.debug("[GeminiService] Extrayendo texto desde DOCX: {}", file.getOriginalFilename());
             return document.getParagraphs().stream()
                     .map(XWPFParagraph::getText)
                     .collect(Collectors.joining("\n"));
 
         } catch (IOException e) {
+            logger.error("[GeminiService] Error procesando archivo Word {}", file.getOriginalFilename(), e);
             throw new RuntimeException("Error procesando archivo Word: " + e.getMessage(), e);
         }
     }
 
     private String extractTextFromExcel(MultipartFile file) {
         StringBuilder sb = new StringBuilder();
+        logger.debug("[GeminiService] Extrayendo texto desde Excel: {}", file.getOriginalFilename());
 
         try (InputStream is = file.getInputStream();
              Workbook workbook = WorkbookFactory.create(is)) {
@@ -273,6 +310,7 @@ public class GeminiService {
             }
 
         } catch (Exception e) {
+            logger.error("[GeminiService] Error procesando archivo Excel {}", file.getOriginalFilename(), e);
             throw new RuntimeException("Error procesando archivo Excel: " + e.getMessage(), e);
         }
 
@@ -281,8 +319,10 @@ public class GeminiService {
 
     private String extractTextAsPlainText(MultipartFile file) {
         try {
+            logger.debug("[GeminiService] Extrayendo texto como plano de: {}", file.getOriginalFilename());
             return new String(file.getBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
+            logger.error("[GeminiService] Error leyendo archivo como texto plano {}", file.getOriginalFilename(), e);
             throw new RuntimeException("Error leyendo archivo como texto plano", e);
         }
     }
@@ -300,12 +340,14 @@ public class GeminiService {
 
     private String extractTextFromPdf(MultipartFile file) {
         try (InputStream is = file.getInputStream()) {
+            logger.debug("[GeminiService] Extrayendo texto desde PDF: {}", file.getOriginalFilename());
             PDDocument document = PDDocument.load(is);
             PDFTextStripper stripper = new PDFTextStripper();
             String text = stripper.getText(document);
             document.close();
             return text;
         } catch (IOException e) {
+            logger.error("[GeminiService] Error procesando archivo PDF {}", file.getOriginalFilename(), e);
             throw new RuntimeException("Error procesando archivo PDF: " + e.getMessage(), e);
         }
     }
