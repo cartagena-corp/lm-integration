@@ -41,7 +41,7 @@ public class ProjectImportService {
         this.restTemplate = restTemplate;
     }
 
-    public ResponseEntity<?> importProjectWithIssues(String projectId, MultipartFile file, String mappingJson) {
+    public ResponseEntity<?> importProjectWithIssues(String projectId, String sprintId, MultipartFile file, String mappingJson) {
         logger.info("=== [ProjectImportService] Iniciando importación de issues para el proyecto con ID={} ===", projectId);
         try {
             ObjectMapper objectMapper = new ObjectMapper();
@@ -50,7 +50,12 @@ public class ProjectImportService {
             logger.debug("[ProjectImportService] Mapeo recibido: {}", mapping);
 
             String token = JwtContextHolder.getToken();
-            List<IssueDTO> issuesToSend = extractIssuesFromExcel(file, UUID.fromString(projectId), mapping, token);
+
+            UUID sprintUUID = null;
+            if (sprintId != null && !sprintId.isBlank()) {
+                sprintUUID = UUID.fromString(sprintId);
+            }
+            List<IssueDTO> issuesToSend = extractIssuesFromExcel(file, UUID.fromString(projectId), sprintUUID, mapping, token);
 
             logger.info("[ProjectImportService] Total de issues preparados para envío: {} al servicio lm-issues", issuesToSend.size());
 
@@ -74,7 +79,7 @@ public class ProjectImportService {
         }
     }
 
-    private List<IssueDTO> extractIssuesFromExcel(MultipartFile file, UUID projectId, Map<String, String> mapping, String token) throws Exception {
+    private List<IssueDTO> extractIssuesFromExcel(MultipartFile file, UUID projectId, UUID sprintId, Map<String, String> mapping, String token) throws Exception {
         logger.info("[ProjectImportService] Extrayendo issues desde Excel para el proyecto con ID={}", projectId);
         InputStream inputStream = file.getInputStream();
         Workbook workbook = new XSSFWorkbook(inputStream);
@@ -122,7 +127,7 @@ public class ProjectImportService {
                 }
             }
 
-            issuesToSend.add(new IssueDTO(title.trim(), descriptions, 0, projectId, null, null, null, null, assignedId));
+            issuesToSend.add(new IssueDTO(title.trim(), descriptions, 0, projectId, sprintId, null, null, null, assignedId));
             logger.debug("[ProjectImportService] Issue agregado desde fila {}: title='{}', descriptions={}, assignedId={}", row.getRowNum() + 1, title.trim(), descriptions.size(), assignedId);
         }
         logger.info("[ProjectImportService] Total de issues extraídos: {}", issuesToSend.size());

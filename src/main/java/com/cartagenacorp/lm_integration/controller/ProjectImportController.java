@@ -22,10 +22,11 @@ public class ProjectImportController {
     @RequiresPermission({"IMPORT_PROJECT"})
     public ResponseEntity<?> importProjectWithIssues(
             @RequestPart("projectId") String projectId,
+            @RequestPart(value = "sprintId", required = false) String sprintId,
             @RequestPart("file") MultipartFile file,
             @RequestPart("mapping") String mappingJson
     ) {
-        return projectImportService.importProjectWithIssues(projectId, file, mappingJson);
+        return projectImportService.importProjectWithIssues(projectId, sprintId, file, mappingJson);
     }
 
     @PostMapping("/columns")
