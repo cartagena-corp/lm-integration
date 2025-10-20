@@ -116,7 +116,6 @@ public class ProjectImportService {
             }
 
             UUID assignedId = null;
-
             if (mapping.containsKey("assignedId")) {
                 String assignedRaw = getCellValueByMapping(row, headerRow, mapping.get("assignedId"));
                 if (assignedRaw != null && !assignedRaw.isBlank()) {
@@ -127,7 +126,19 @@ public class ProjectImportService {
                 }
             }
 
-            issuesToSend.add(new IssueDTO(title.trim(), descriptions, 0, projectId, sprintId, null, null, null, assignedId));
+            Integer estimatedTime = 0;
+            if (mapping.containsKey("estimatedTime")) {
+                String timeRaw = getCellValueByMapping(row, headerRow, mapping.get("estimatedTime"));
+                if (timeRaw != null && !timeRaw.isBlank()) {
+                    try {
+                        estimatedTime = Integer.parseInt(timeRaw.trim());
+                    } catch (NumberFormatException e) {
+                        logger.warn("[ProjectImportService] Valor inválido de 'estimatedTime' en fila {}: '{}'", row.getRowNum() + 1, timeRaw);
+                    }
+                }
+            }
+
+            issuesToSend.add(new IssueDTO(title.trim(), descriptions, estimatedTime, projectId, sprintId, null, null, null, assignedId));
             logger.debug("[ProjectImportService] Issue agregado desde fila {}: title='{}', descriptions={}, assignedId={}", row.getRowNum() + 1, title.trim(), descriptions.size(), assignedId);
         }
         logger.info("[ProjectImportService] Total de issues extraídos: {}", issuesToSend.size());
