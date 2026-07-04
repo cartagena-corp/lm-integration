@@ -14,7 +14,7 @@ server:
   port: '8087'
 app:
   cors:
-    allowed-origins: https://cartagenacorporation.com,https://www.cartagenacorporation.com
+    allowed-origins: https://cartagenacorporation.com,https://www.cartagenacorporation.com,http://localhost:3000,http://127.0.0.1:3000
   jwt:
     secret: ${JWT_SECRET}
 project:
