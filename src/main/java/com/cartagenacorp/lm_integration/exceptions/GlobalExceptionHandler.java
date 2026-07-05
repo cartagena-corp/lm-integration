@@ -1,5 +1,7 @@
 package com.cartagenacorp.lm_integration.exceptions;
 
+import com.cartagenacorp.lm_integration.dto.NotificationResponse;
+import com.cartagenacorp.lm_integration.util.ResponseUtil;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -14,6 +16,12 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(BaseException.class)
+    public ResponseEntity<NotificationResponse> handleBaseException(BaseException ex) {
+        return ResponseEntity.status(ex.getStatusCode())
+                .body(ResponseUtil.error(ex.getMessage(), HttpStatus.valueOf(ex.getStatusCode())));
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidationErrors(MethodArgumentNotValidException ex) {
