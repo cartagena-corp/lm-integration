@@ -6,6 +6,8 @@ import com.cartagenacorp.lm_integration.util.RequiresPermission;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/gemini-config")
 public class GeminiConfigController {
@@ -27,6 +29,20 @@ public class GeminiConfigController {
     @RequiresPermission({"GEMINI_CONFIG"})
     public ResponseEntity<GeminiConfigDto> updateOrCreateGeminiConfig(@RequestBody GeminiConfigDto geminiConfigDto) {
         GeminiConfigDto updatedConfig = geminiConfigService.updateOrCreateGeminiConfig(geminiConfigDto);
+        return ResponseEntity.ok(updatedConfig);
+    }
+
+    @GetMapping("/manageKeys/{organizationId}")
+    @RequiresPermission({"ORGANIZATION_CONTROL"})
+    public ResponseEntity<GeminiConfigDto> getGeminiConfigurationSUPERADMIN(@PathVariable String organizationId) {
+        UUID uuid = UUID.fromString(organizationId);
+        GeminiConfigDto config = geminiConfigService.getGeminiConfigurationSUPERADMIN(uuid);
+        return ResponseEntity.ok(config);
+    }
+    @PutMapping("/manageKeys")
+    @RequiresPermission({"ORGANIZATION_CONTROL"})
+    public ResponseEntity<GeminiConfigDto> manageGeminiConfigurationSUPERADMIN(@RequestBody GeminiConfigDto geminiConfigDto) {
+        GeminiConfigDto updatedConfig = geminiConfigService.manageGeminiConfigurationSUPERADMIN(geminiConfigDto);
         return ResponseEntity.ok(updatedConfig);
     }
 

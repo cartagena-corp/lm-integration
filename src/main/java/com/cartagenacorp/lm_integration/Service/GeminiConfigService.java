@@ -106,6 +106,68 @@ public class GeminiConfigService {
         return configForFrontend;
     }
 
+    public GeminiConfigDto getGeminiConfigurationSUPERADMIN(UUID organizationId) {
+        logger.info("=== [GeminiConfigService] Iniciando flujo de obtención de GeminiConfig para el front para SUPER_ADMIN ===");
+
+        logger.info("[GeminiConfigService] Consultando en DB la configuración de Gemini para la organización con ID={}", organizationId);
+
+        GeminiConfig config = geminiConfigRepository.findByOrganizationId(organizationId)
+                .orElse(null);
+
+        if (config == null) {
+            logger.warn("[GeminiConfigService] No se encontró configuración de Gemini para la organización con ID={}. Se devolverá un DTO vacío.", organizationId);
+            return new GeminiConfigDto();
+        }
+
+        GeminiConfigDto configForFrontend = geminiConfigMapper.toDto(config);
+        String organizationName = organizationExternalService.getOrganizationName(JwtContextHolder.getToken(), organizationId)
+                .orElseGet(() -> {
+                    logger.warn("[GeminiConfigService] No se pudo obtener el nombre de la organización con ID={}. Se usará 'Desconocida'.", organizationId);
+                    return "Desconocida";
+                });
+        configForFrontend.setOrganizationName(organizationName);
+
+        logger.info("=== [GeminiConfigService] Finalizando flujo de obtención de GeminiConfig para el front para SUPER_ADMIN correctamente ===");
+        return configForFrontend;
+    }
+
+    @Transactional
+    public GeminiConfigDto manageGeminiConfigurationSUPERADMIN(GeminiConfigDto geminiConfigDto) {
+        logger.info("=== [GeminiConfigService] Iniciando flujo de creación/actualización de GeminiConfig para SUPER_ADMIN ===");
+
+        UUID organizationId = geminiConfigDto.getOrganizationId();
+        logger.info("[GeminiConfigService] Consultando en DB la configuración de Gemini para la organización con ID={}", organizationId);
+
+        GeminiConfig config = geminiConfigRepository.findByOrganizationId(organizationId)
+                .orElseGet(() -> {
+                    logger.info("[GeminiConfigService] No existe configuración previa para la organización con ID={}. Se creará una nueva.", organizationId);
+                    return new GeminiConfig();
+                });
+
+        config.setOrganizationId(organizationId);
+
+        if (geminiConfigDto.getUrl() != null && !geminiConfigDto.getUrl().isBlank()) {
+            logger.debug("[GeminiConfigService] Actualizando URL de GeminiConfig");
+            config.setUrl(geminiConfigDto.getUrl());
+        }
+        if (geminiConfigDto.getKey() != null && !geminiConfigDto.getKey().isBlank()) {
+            logger.debug("[GeminiConfigService] Actualizando Key de GeminiConfig");
+            config.setKey(geminiConfigDto.getKey());
+        }
+        GeminiConfig saveGeminiConfig = geminiConfigRepository.save(config);
+
+        GeminiConfigDto configForFrontend = geminiConfigMapper.toDto(saveGeminiConfig);
+        String organizationName = organizationExternalService.getOrganizationName(JwtContextHolder.getToken(), organizationId)
+                .orElseGet(() -> {
+                    logger.warn("[GeminiConfigService] No se pudo obtener el nombre de la organización con ID={}. Se usará 'Desconocida'.", organizationId);
+                    return "Desconocida";
+                });
+        configForFrontend.setOrganizationName(organizationName);
+
+        logger.info("=== [GeminiConfigService] Finalizando flujo de creación/actualización de GeminiConfig para SUPER_ADMIN correctamente ===");
+        return configForFrontend;
+    }
+
     private String obscureFirstHalf(String value) {
         if (value == null || value.isEmpty()) {
             return value;
